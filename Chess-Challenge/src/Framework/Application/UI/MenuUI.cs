@@ -29,6 +29,10 @@ namespace ChessChallenge.Application
             {
                 controller.StartNewBotMatch(ChallengeController.PlayerType.MyBot, ChallengeController.PlayerType.EvilBot);
             }
+            if (NextButtonInRow("Train MyBot", ref buttonPos, spacing, buttonSize))
+            {
+                controller.TrainBot();
+            }
 
             // Page buttons
             buttonPos.Y += breakSpacing;

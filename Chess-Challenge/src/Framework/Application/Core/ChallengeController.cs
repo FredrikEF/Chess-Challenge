@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using static ChessChallenge.Application.Settings;
 using static ChessChallenge.Application.ConsoleHelper;
+using System.Runtime.Intrinsics.Arm;
 
 namespace ChessChallenge.Application
 {
@@ -90,6 +91,7 @@ namespace ChessChallenge.Application
                 botTaskWaitHandle = new AutoResetEvent(false);
                 Task.Factory.StartNew(BotThinkerThread, TaskCreationOptions.LongRunning);
             }
+
             // Board Setup
             board = new Board();
             bool isGameWithHuman = whiteType is PlayerType.Human || blackType is PlayerType.Human;
@@ -412,6 +414,159 @@ namespace ChessChallenge.Application
             botAPlaysWhite = true;
             Log($"Starting new match: {nameA} vs {nameB}", false, ConsoleColor.Blue);
             StartNewGame(botTypeA, botTypeB);
+        }
+
+
+        public void TrainBot()
+        {
+            EndGame(GameResult.DrawByArbiter, log: false, autoStartNextBotMatch: false);
+
+            int instances = 20;
+
+            int epochs = 10;
+
+
+            MyBot[] bots = new MyBot[instances];
+            MyBot bestBot = null!;
+            for (var i = 0; i < instances; i++)
+            {
+                bots[i] = new MyBot().InitializeRandom();
+            }
+
+            Task<(int, int, int, MyBot)>[] tasks = new Task<(int, int, int, MyBot)>[instances];
+            for (var e = 0; e < epochs; e++)
+            {
+                Console.WriteLine($"epoch {e + 1}/{epochs}");
+                for(var i = 0; i < instances; i++)
+                {
+                    tasks[i] = StartTrainer(i, bots);
+                }
+                var scores = Task.WhenAll(tasks).Result;
+
+                var ranking = scores
+                    .Select(((int a, int b, int c, MyBot bot) t) => (Score: t.a + t.b * -1 + t.c * -100, Bot: t.bot))
+                    .OrderByDescending(x => x.Score)
+                    .ToList();
+
+                Console.WriteLine("top 10 from epoch");
+                bestBot = ranking[0].Bot;
+                foreach(var rank in ranking.Take(10))
+                {
+                    Console.WriteLine(rank.Score);
+                }
+                Random rnd = new();
+                for (int i = 0; i < instances; i++)
+                {
+                    int parentA = 0;
+                    while(rnd.Next(100) < 20 && parentA > ranking.Count)
+                    {
+                        parentA++;
+                    }
+
+                    int parentB = rnd.Next(ranking.Count);
+                    while(parentB == parentA)
+                    {
+                        parentB = rnd.Next(ranking.Count);
+                    }
+
+                    bots[i] = new();
+                    bots[i].FromParents(ranking[parentA].Bot, ranking[parentB].Bot);
+                }
+            }
+
+            StringBuilder buf = new();
+
+            buf.Append("double[] ComputedWheights = new[] { ");
+            foreach(var wheight in bestBot.Wheights)
+            {
+                buf.Append(wheight);
+                buf.Append(", ");
+
+            }
+            buf.Append("};");
+
+            File.WriteAllText("./computed_bot_brain.txt", buf.ToString());
+        }
+
+        private Task<(int, int, int, MyBot)> StartTrainer(int i, MyBot[] bots)
+        {
+            return Task.Factory.StartNew(() =>
+            {
+                int wins = 0;
+                int draws = 0;
+                int losses = 0;
+
+                var bot = bots[i];
+                var evilBot = new EvilBot();
+
+                for (int s = 0; s < botMatchStartFens.Length; s++)
+                {
+                    Board board = new();
+                    GameResult result = GameResult.InProgress;
+                    var botTimer = new API.Timer(5 * 60 * 1000);
+                    var evilBotTimer = new API.Timer(5 * 60 * 1000);
+                    board.LoadPosition(botMatchStartFens[s]);
+
+                    do
+                    {
+                        //Move bot
+                        var botBoard = new API.Board(new(board));
+                        var move = bot.Think(botBoard, botTimer);
+                        board.MakeMove(new(move.RawValue));
+
+                        result = Arbiter.GetGameState(board);
+                        if (result != GameResult.InProgress)
+                            break;
+
+                        //Move evil bot
+                        var evilBoard = new API.Board(new(board));
+                        var evilMove = evilBot.Think(evilBoard, evilBotTimer);
+                        board.MakeMove(new(evilMove.RawValue));
+
+                        result = Arbiter.GetGameState(board);
+                        if (result != GameResult.InProgress)
+                            break;
+
+                    } while (true);
+
+                    switch (result)
+                    {
+                        case GameResult.WhiteIsMated:
+                            losses++;
+                            break;
+                        case GameResult.BlackIsMated:
+                            wins++;
+                            break;
+                        case GameResult.Stalemate:
+                            draws++;
+                            break;
+                        case GameResult.Repetition:
+                            draws++;
+                            break;
+                        case GameResult.FiftyMoveRule:
+                            draws++;
+                            break;
+                        case GameResult.InsufficientMaterial:
+                            draws++;
+                            break;
+                        case GameResult.DrawByArbiter:
+                            draws++;
+                            break;
+                        case GameResult.WhiteTimeout:
+                            losses++;
+                            break;
+                        case GameResult.BlackTimeout:
+                            wins++;
+                            break;
+                        case GameResult.WhiteIllegalMove:
+                            throw new Exception("Illegal move made!");
+                    }
+                }
+
+                Console.WriteLine($" :) {wins} - {draws} :( {losses}");
+
+                return (wins, draws, losses, bot);
+            }, TaskCreationOptions.None);
         }
 
 
