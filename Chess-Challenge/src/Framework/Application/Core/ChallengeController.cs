@@ -419,73 +419,73 @@ namespace ChessChallenge.Application
 
         public void TrainBot()
         {
-            EndGame(GameResult.DrawByArbiter, log: false, autoStartNextBotMatch: false);
+            //EndGame(GameResult.DrawByArbiter, log: false, autoStartNextBotMatch: false);
 
-            int instances = 20;
+            //int instances = 20;
 
-            int epochs = 10;
+            //int epochs = 10;
 
 
-            MyBot[] bots = new MyBot[instances];
-            MyBot bestBot = null!;
-            for (var i = 0; i < instances; i++)
-            {
-                bots[i] = new MyBot().InitializeRandom();
-            }
+            //MyBot[] bots = new MyBot[instances];
+            //MyBot bestBot = null!;
+            //for (var i = 0; i < instances; i++)
+            //{
+            //    bots[i] = new MyBot().InitializeRandom();
+            //}
 
-            Task<(int, int, int, MyBot)>[] tasks = new Task<(int, int, int, MyBot)>[instances];
-            for (var e = 0; e < epochs; e++)
-            {
-                Console.WriteLine($"epoch {e + 1}/{epochs}");
-                for(var i = 0; i < instances; i++)
-                {
-                    tasks[i] = StartTrainer(i, bots);
-                }
-                var scores = Task.WhenAll(tasks).Result;
+            //Task<(int, int, int, MyBot)>[] tasks = new Task<(int, int, int, MyBot)>[instances];
+            //for (var e = 0; e < epochs; e++)
+            //{
+            //    Console.WriteLine($"epoch {e + 1}/{epochs}");
+            //    for(var i = 0; i < instances; i++)
+            //    {
+            //        tasks[i] = StartTrainer(i, bots);
+            //    }
+            //    var scores = Task.WhenAll(tasks).Result;
 
-                var ranking = scores
-                    .Select(((int a, int b, int c, MyBot bot) t) => (Score: t.a + t.b * -1 + t.c * -100, Bot: t.bot))
-                    .OrderByDescending(x => x.Score)
-                    .ToList();
+            //    var ranking = scores
+            //        .Select(((int a, int b, int c, MyBot bot) t) => (Score: t.a + t.b * -1 + t.c * -100, Bot: t.bot))
+            //        .OrderByDescending(x => x.Score)
+            //        .ToList();
 
-                Console.WriteLine("top 10 from epoch");
-                bestBot = ranking[0].Bot;
-                foreach(var rank in ranking.Take(10))
-                {
-                    Console.WriteLine(rank.Score);
-                }
-                Random rnd = new();
-                for (int i = 0; i < instances; i++)
-                {
-                    int parentA = 0;
-                    while(rnd.Next(100) < 20 && parentA > ranking.Count)
-                    {
-                        parentA++;
-                    }
+            //    Console.WriteLine("top 10 from epoch");
+            //    bestBot = ranking[0].Bot;
+            //    foreach(var rank in ranking.Take(10))
+            //    {
+            //        Console.WriteLine(rank.Score);
+            //    }
+            //    Random rnd = new();
+            //    for (int i = 0; i < instances; i++)
+            //    {
+            //        int parentA = 0;
+            //        while(rnd.Next(100) < 20 && parentA > ranking.Count)
+            //        {
+            //            parentA++;
+            //        }
 
-                    int parentB = rnd.Next(ranking.Count);
-                    while(parentB == parentA)
-                    {
-                        parentB = rnd.Next(ranking.Count);
-                    }
+            //        int parentB = rnd.Next(ranking.Count);
+            //        while(parentB == parentA)
+            //        {
+            //            parentB = rnd.Next(ranking.Count);
+            //        }
 
-                    bots[i] = new();
-                    bots[i].FromParents(ranking[parentA].Bot, ranking[parentB].Bot);
-                }
-            }
+            //        bots[i] = new();
+            //        bots[i].FromParents(ranking[parentA].Bot, ranking[parentB].Bot);
+            //    }
+            //}
 
-            StringBuilder buf = new();
+            //StringBuilder buf = new();
 
-            buf.Append("double[] ComputedWheights = new[] { ");
-            foreach(var wheight in bestBot.Wheights)
-            {
-                buf.Append(wheight);
-                buf.Append(", ");
+            //buf.Append("double[] ComputedWheights = new[] { ");
+            //foreach(var wheight in bestBot.Wheights)
+            //{
+            //    buf.Append(wheight);
+            //    buf.Append(", ");
 
-            }
-            buf.Append("};");
+            //}
+            //buf.Append("};");
 
-            File.WriteAllText("./computed_bot_brain.txt", buf.ToString());
+            //File.WriteAllText("./computed_bot_brain.txt", buf.ToString());
         }
 
         private Task<(int, int, int, MyBot)> StartTrainer(int i, MyBot[] bots)
